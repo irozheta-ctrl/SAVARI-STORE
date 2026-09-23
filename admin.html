@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAVARI STORE Admin</title>
+<style>
+body{font-family:Arial;margin:0;background:#f4f6fa;color:#151923}.wrap{max-width:1200px;margin:auto;padding:22px}
+.top{display:flex;gap:10px;flex-wrap:wrap;align-items:center}input,select,button{padding:10px;border-radius:9px;border:1px solid #d5d9e2}button{background:#111827;color:white;cursor:pointer}
+table{width:100%;border-collapse:collapse;background:white;margin-top:20px}th,td{padding:11px;border-bottom:1px solid #eee;text-align:left;font-size:13px}
+.badge{padding:5px 8px;border-radius:999px;background:#eee;font-size:11px;font-weight:bold}
+@media(max-width:800px){table{display:block;overflow:auto;white-space:nowrap}}
+</style></head>
+<body><div class="wrap">
+<h1>SAVARI STORE — Admin</h1>
+<div class="top"><input id="key" type="password" placeholder="ADMIN_KEY" size="30"><button onclick="load()">Masuk / Refresh</button></div>
+<div id="msg"></div><div id="table"></div>
+</div>
+<script>
+let orders=[];
+const statuses=["WAITING_PAYMENT","PAID","PROCESSING","SUCCESS","FAILED","CANCELLED"];
+async function load(){
+ const key=document.getElementById("key").value;
+ const r=await fetch("/api/admin/orders",{headers:{"x-admin-key":key}});
+ const d=await r.json(); if(!r.ok)return msg.textContent=d.error||"Gagal.";
+ orders=d; render();
+}
+function render(){
+ table.innerHTML=`<table><thead><tr><th>ID</th><th>Order</th><th>Game</th><th>ID Player</th><th>Produk</th><th>Total</th><th>Status</th><th>Aksi</th></tr></thead><tbody>
+ ${orders.map(o=>`<tr><td>${o.id}</td><td><b>${o.order_code}</b><br>${new Date(o.created_at).toLocaleString("id-ID")}</td><td>${o.game}</td><td>${o.user_id}${o.server_id?" / "+o.server_id:""}</td><td>${o.product}</td><td>Rp ${Number(o.amount).toLocaleString("id-ID")}</td><td><span class="badge">${o.status}</span></td><td>
+ <select onchange="updateStatus(${o.id},this.value)">${statuses.map(s=>`<option ${s===o.status?"selected":""}>${s}</option>`).join("")}</select></td></tr>`).join("")}
+ </tbody></table>`;
+}
+async function updateStatus(id,status){
+ const key=document.getElementById("key").value;
+ const r=await fetch("/api/admin/orders/"+id,{method:"PATCH",headers:{"Content-Type":"application/json","x-admin-key":key},body:JSON.stringify({status})});
+ if(!r.ok){const d=await r.json();alert(d.error||"Gagal");return}
+ load();
+}
+</script></body></html>

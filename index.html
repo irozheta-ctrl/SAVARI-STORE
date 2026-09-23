@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SAVARI STORE</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#f5f7fb;color:#151923}
+header{background:linear-gradient(135deg,#111827,#7c3aed);color:#fff;padding:28px 18px}
+.wrap{max-width:1050px;margin:auto}.brand{font-size:28px;font-weight:900}.sub{opacity:.8;margin-top:6px}
+.search{margin-top:20px;width:100%;padding:14px 16px;border:0;border-radius:14px;font-size:15px}
+main{padding:25px 18px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:15px}
+.card{background:#fff;border:1px solid #e8eaf0;border-radius:18px;padding:18px;box-shadow:0 8px 25px #1118270b}
+.icon{font-size:38px}.card h3{margin:10px 0 6px}.muted{color:#6b7280;font-size:13px}
+.btn{border:0;border-radius:12px;padding:11px 14px;background:#7c3aed;color:#fff;font-weight:800;cursor:pointer}
+.btn.secondary{background:#111827}.btn.full{width:100%}
+.modal{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;padding:18px}
+.modal.show{display:flex}.box{background:#fff;border-radius:20px;padding:22px;max-width:500px;width:100%;max-height:90vh;overflow:auto}
+label{display:block;font-size:13px;font-weight:800;margin:12px 0 6px}
+input,select,textarea{width:100%;padding:12px;border:1px solid #d8dce5;border-radius:11px;font:inherit}
+.actions{display:flex;gap:10px;margin-top:18px}.actions>*{flex:1}
+.order{margin-top:25px;background:#fff;border-radius:18px;padding:20px;border:1px solid #e8eaf0}
+.code{font-size:24px;font-weight:900;letter-spacing:1px}.status{display:inline-block;padding:7px 10px;border-radius:999px;background:#ede9fe;color:#5b21b6;font-weight:800;font-size:12px}
+.hidden{display:none}.price{font-weight:900;margin:12px 0}
+footer{text-align:center;color:#6b7280;padding:30px}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <div class="brand">SAVARI STORE</div>
+  <div class="sub">Top up game & katalog digital</div>
+  <input id="search" class="search" placeholder="Cari game...">
+</div></header>
+
+<main class="wrap">
+  <h2>Katalog</h2>
+  <div id="catalog" class="grid"></div>
+  <div id="lastOrder"></div>
+</main>
+<footer>SAVARI STORE • Sistem pesanan online</footer>
+
+<div id="modal" class="modal">
+ <div class="box">
+  <h2 id="modalTitle">Checkout</h2>
+  <form id="orderForm">
+   <input type="hidden" id="game">
+   <label>User ID</label><input id="user_id" required placeholder="Masukkan User ID">
+   <label>Server ID <span class="muted">(jika diperlukan)</span></label><input id="server_id" placeholder="Contoh: 1234">
+   <label>Nominal</label><select id="product" required></select>
+   <label>Nama pembeli</label><input id="customer_name" placeholder="Opsional">
+   <label>No. WhatsApp</label><input id="customer_contact" placeholder="Opsional">
+   <label>Metode pembayaran</label>
+   <select id="payment_method"><option value="MANUAL">Transfer / pembayaran manual</option></select>
+   <label>Catatan</label><textarea id="note" rows="3" placeholder="Opsional"></textarea>
+   <div class="actions"><button type="button" class="btn secondary" onclick="closeModal()">Batal</button><button class="btn">Buat Pesanan</button></div>
+  </form>
+ </div>
+</div>
+
+<script>
+let catalog={};
+const icons={"Mobile Legends":"⚔️","Free Fire":"🔥","HAGO":"🎮","PUBG Mobile":"🔫"};
+
+async function load(){
+  catalog=await (await fetch("/api/catalog")).json();
+  render();
+}
+function rupiah(n){return new Intl.NumberFormat("id-ID",{style:"currency",currency:"IDR",maximumFractionDigits:0}).format(n)}
+function render(){
+  const q=document.getElementById("search").value.toLowerCase();
+  document.getElementById("catalog").innerHTML=Object.entries(catalog)
+   .filter(([g])=>g.toLowerCase().includes(q))
+   .map(([g,items])=>`<div class="card"><div class="icon">${icons[g]||"🎮"}</div><h3>${g}</h3>
+    <div class="muted">${items.length} pilihan nominal</div>
+    <div class="price">Mulai ${rupiah(Math.min(...items.map(x=>x.amount)))}</div>
+    <button class="btn full" onclick="openModal('${g}')">Top Up</button></div>`).join("");
+}
+function openModal(game){
+  document.getElementById("game").value=game;
+  document.getElementById("modalTitle").textContent="Top Up • "+game;
+  document.getElementById("product").innerHTML=catalog[game].map(x=>`<option value="${x.name}">${x.name} — ${rupiah(x.amount)}</option>`).join("");
+  document.getElementById("modal").classList.add("show");
+}
+function closeModal(){document.getElementById("modal").classList.remove("show")}
+document.getElementById("search").oninput=render;
+
+document.getElementById("orderForm").onsubmit=async e=>{
+ e.preventDefault();
+ const body={
+  game:game.value,user_id:user_id.value,server_id:server_id.value,
+  product:product.value,customer_name:customer_name.value,
+  customer_contact:customer_contact.value,payment_method:payment_method.value,note:note.value
+ };
+ const r=await fetch("/api/orders",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+ const data=await r.json();
+ if(!r.ok)return alert(data.error||"Gagal membuat pesanan.");
+ closeModal();
+ showOrder(data);
+};
+function showOrder(o){
+ document.getElementById("lastOrder").innerHTML=`<div class="order">
+ <div class="muted">Pesanan berhasil dibuat</div>
+ <div class="code">${o.order_code}</div>
+ <p><b>${o.game}</b> — ${o.product}</p>
+ <p>Total: <b>${rupiah(o.amount)}</b></p>
+ <p>Status: <span class="status">${o.status}</span></p>
+ <button class="btn" onclick="checkOrder('${o.order_code}')">Cek Status</button>
+ </div>`;
+ window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"});
+}
+async function checkOrder(code){
+ const r=await fetch("/api/orders/"+encodeURIComponent(code)); const o=await r.json();
+ if(!r.ok)return alert(o.error);
+ alert(`Order ${o.order_code}\\nStatus: ${o.status}\\nProduk: ${o.product}\\nTotal: ${rupiah(o.amount)}`);
+}
+load();
+</script>
+</body>
+</html>
